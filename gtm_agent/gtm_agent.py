@@ -103,14 +103,23 @@ def _offering_has_required_fields(offering):
 
 
 @tool
-def score_prospect(prospect_profile: dict, offering: dict | None = None) -> dict:
-    "Score a prospect profile's potential for an offering on a 1-100 scale with a justification. Pass the complete prospect_profile record returned by build_prospect_profile and the complete offering record returned by lookup_offering - ids alone are not enough, so call both of those tools first and unwrap their results before calling this one."
-    if offering is None or not _offering_has_required_fields(offering):
+def score_prospect(prospect_id: str, offering_id: str) -> dict:
+    "Score a prospect's potential for an offering using prospect_id and offering_id; pass IDs only, not full records."
+    offering = data_service.get_offering(offering_id)
+    if not isinstance(offering, dict) or not _offering_has_required_fields(offering):
         return {"score": None, "error": "Cannot score without a valid offering."}
-    # Score against the prospect's saved tech stack of record.
-    pid = prospect_profile.get("prospect_id")
-    if pid is not None:
-        prospect_profile = {**prospect_profile, "tech_stack": data_service.fetch_tech_stack(pid)}
+    stored_profile = data_service.get_profile_from_db(prospect_id)
+    prospect_profile = stored_profile.get("prospect_profile") if isinstance(stored_profile, dict) else None
+    if not isinstance(prospect_profile, dict) or not prospect_profile:
+        prospect_record = data_service.get_prospect_record(prospect_id)
+        prospect_profile = {"prospect_id": prospect_id, **prospect_record} if isinstance(prospect_record, dict) else None
+    if prospect_profile is None:
+        return {"score": None, "error": "Cannot score without a valid prospect."}
+    prospect_profile = {
+        key: value for key, value in prospect_profile.items()
+        if key not in {"name", "email", "billing_qualification"}
+    }
+    prospect_profile["tech_stack"] = data_service.fetch_tech_stack(prospect_id)
     user = (
         "Offering:\n" + json.dumps(offering, indent=2) +
         "\n\nProspect profile:\n" + json.dumps(prospect_profile, indent=2)
