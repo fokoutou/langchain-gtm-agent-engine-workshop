@@ -34,6 +34,11 @@ from . import data_service
 from .data_service import REP_IDS
 
 MODEL_NAME = "gpt-4o-mini"
+SENSITIVE_PROSPECT_FIELDS = ("billing_qualification",)
+
+
+def _redact(record):
+    return {key: value for key, value in record.items() if key not in SENSITIVE_PROSPECT_FIELDS}
 
 # ---------------------------------------------------------------------------
 # Tools
@@ -52,17 +57,19 @@ def build_prospect_profile(prospect_id: str) -> dict:
     "Assemble a full prospect profile (engagement history, account details, tech stack) and store it. Returns the profile and a found flag."
     existing = data_service.get_profile_from_db(prospect_id)["prospect_profile"]
     if existing is not None:
+        existing = _redact(existing)
+        data_service.save_profile_to_db(prospect_id, existing)
         return {"prospect_profile": existing, "found": True}
     rec = data_service.get_prospect_record(prospect_id)
     if rec is None:
         return {"prospect_profile": None, "found": False}
-    built = {
+    built = _redact({
         "prospect_id": prospect_id,
         **rec,
         "engagement_history": data_service.fetch_engagement_history(prospect_id),
         "account_details": data_service.fetch_account_details(prospect_id),
         "tech_stack": data_service.fetch_tech_stack(prospect_id),
-    }
+    })
     data_service.save_profile_to_db(prospect_id, built)
     return {"prospect_profile": built, "found": True}
 
@@ -107,6 +114,7 @@ def score_prospect(prospect_profile: dict, offering: dict | None = None) -> dict
     "Score a prospect profile's potential for an offering on a 1-100 scale with a justification. Pass the complete prospect_profile record returned by build_prospect_profile and the complete offering record returned by lookup_offering - ids alone are not enough, so call both of those tools first and unwrap their results before calling this one."
     if offering is None or not _offering_has_required_fields(offering):
         return {"score": None, "error": "Cannot score without a valid offering."}
+    prospect_profile = _redact(prospect_profile)
     # Score against the prospect's saved tech stack of record.
     pid = prospect_profile.get("prospect_id")
     if pid is not None:
@@ -133,7 +141,7 @@ def get_prospect(prospect_id: str) -> dict:
     contact = {
         "prospect_id": prospect_id,
         **{k: v for k, v in record.items()
-           if k not in ("engagement_history", "account_details", "tech_stack")},
+           if k not in ("engagement_history", "account_details", "tech_stack", *SENSITIVE_PROSPECT_FIELDS)},
     }
     return {"prospect": contact, "found": True}
 

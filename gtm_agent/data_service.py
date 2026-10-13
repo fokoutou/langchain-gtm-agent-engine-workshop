@@ -60,7 +60,17 @@ def fetch_tech_stack(prospect_id):
     return PROSPECTS[prospect_id]["tech_stack"]
 
 
-@traceable(run_type="tool", name="get_profile_from_db")
+def _redact_profile_output(outputs):
+    if outputs.get("prospect_profile") is not None:
+        return {**outputs, "prospect_profile": "[REDACTED]"}
+    return outputs
+
+
+@traceable(
+    run_type="tool",
+    name="get_profile_from_db",
+    process_outputs=_redact_profile_output,
+)
 def get_profile_from_db(prospect_id):
     "Look up a stored prospect profile. Returns {'prospect_profile': record|None}."
     return {"prospect_profile": _PROFILES.get(prospect_id)}
