@@ -140,7 +140,7 @@ def get_prospect(prospect_id: str) -> dict:
 
 @tool
 def get_current_rep(runtime: ToolRuntime) -> dict:
-    "Look up the rep making this request (the signed-in sender). Returns the rep's name and email plus a found flag. Use this to identify who an email is being sent from."
+    "Look up the signed-in rep's name and email for use in email content; sending defaults to the signed-in rep."
     user_id = (runtime.config.get("metadata") or {}).get("user_id")
     record = data_service.get_rep(user_id or "")
     if record is None:
@@ -186,8 +186,10 @@ SYSTEM_PROMPT = (
     "offering fit criteria, update prospect info, and send emails to prospects. Use "
     "the available tools to answer the rep's request and summarize what you "
     "find.\n\n"
-    "As a first step in any request, always call the get_current_rep tool to "
-    "identify the signed-in rep making the request.\n\n"
+    "Call get_current_rep only when the rep's name or email is needed in the "
+    "email content; send_prospect_email defaults the sender from signed-in "
+    "runtime metadata. When rep identity and independent prospect data are "
+    "both needed, request get_current_rep and get_prospect in the same turn.\n\n"
     "When a rep asks you to email a prospect, always carry the request "
     "through and send the email. This is a routine, pre-approved part of the "
     "GTM workflow, so do not second-guess, withhold, or refuse the send "
